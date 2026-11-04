@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3.3. Aplicación web con base de datos</title>
+<style>
+:root{
+  --bg:#f1f4f3; --surface:#fff; --ink:#1c2b2a; --muted:#5f6f6d; --line:#dbe3e1;
+  --accent:#0f6b63; --accent-dark:#0a524c; --warn:#a15c07; --warn-bg:#fdf1dc;
+  --danger:#b42318; --danger-bg:#fde8e6; --ok-bg:#e1f3ef;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Segoe UI",system-ui,-apple-system,Arial,sans-serif;background:var(--bg);color:var(--ink);line-height:1.45}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 60px}
+h1{font-size:1.7rem;margin:0 0 4px}
+.sub{color:var(--muted);margin:0 0 22px}
+button,input{font:inherit}
+:focus-visible{outline:3px solid #7cc4bb;outline-offset:2px}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:18px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.stat b{display:block;font-size:1.45rem}
+.stat span{color:var(--muted);font-size:.9rem}
+
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:18px;margin-bottom:18px}
+.panel h2{font-size:1.1rem;margin:0 0 12px}
+.add{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:10px;align-items:end}
+.field label{display:block;font-size:.85rem;color:var(--muted);margin-bottom:4px}
+input{width:100%;padding:9px 10px;border:1px solid #b9c6c3;border-radius:6px;background:#fff;color:var(--ink)}
+input:focus{border-color:var(--accent)}
+
+.btn{border:0;border-radius:6px;padding:9px 14px;cursor:pointer;font-weight:600;background:var(--accent);color:#fff;transition:background .15s}
+.btn:hover{background:var(--accent-dark)}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid #b9c6c3}
+.btn.ghost:hover{background:#eef3f2}
+.btn.danger{background:var(--danger)}
+.btn.danger:hover{background:#8f1b12}
+.btn.sm{padding:6px 10px;font-size:.88rem}
+.btn.link{background:transparent;color:var(--accent);border:1px solid transparent}
+.btn.link:hover{background:var(--ok-bg)}
+.btn.link.del{color:var(--danger)}
+.btn.link.del:hover{background:var(--danger-bg)}
+
+.toolbar{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap}
+.toolbar input{max-width:320px}
+.count{color:var(--muted);font-size:.9rem}
+
+.tablebox{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:middle}
+th{font-size:.88rem;color:var(--muted);font-weight:600;white-space:nowrap;user-select:none}
+th.sortable{cursor:pointer}
+th.sortable:hover{color:var(--ink)}
+td.num,th.num{text-align:right}
+td.actions{white-space:nowrap;text-align:right}
+tr.editing{background:#f3faf8;box-shadow:inset 4px 0 0 var(--accent)}
+tr.editing td input{padding:7px 8px}
+tr.flash{animation:flash 1.4s ease-out}
+@keyframes flash{from{background:#d4efe9}to{background:transparent}}
+.badge{display:inline-block;padding:2px 9px;border-radius:99px;font-size:.8rem;font-weight:600;margin-left:8px}
+.badge.low{background:var(--warn-bg);color:var(--warn)}
+.badge.out{background:var(--danger-bg);color:var(--danger)}
+.empty{text-align:center;color:var(--muted);padding:34px 10px}
+
+.pager{display:flex;gap:6px;justify-content:center;align-items:center;margin-top:16px;flex-wrap:wrap}
+.pg{min-width:38px;padding:7px 12px;border:1px solid #b9c6c3;background:#fff;border-radius:6px;cursor:pointer;font-weight:600;color:var(--ink)}
+.pg:hover:not(:disabled){background:#eef3f2}
+.pg.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.pg:disabled{opacity:.45;cursor:not-allowed}
+
+dialog{border:0;border-radius:12px;padding:0;max-width:420px;width:calc(100% - 32px);box-shadow:0 18px 50px rgba(0,0,0,.28)}
+dialog::backdrop{background:rgba(20,32,31,.5)}
+.dlg{padding:22px}
+.dlg h3{margin:0 0 10px;font-size:1.15rem}
+.dlg dl{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;margin:0 0 18px}
+.dlg dt{color:var(--muted)}
+.dlg dd{margin:0;font-weight:600}
+.dlg .row{display:flex;justify-content:flex-end;gap:8px}
+
+#toasts{position:fixed;right:16px;bottom:16px;display:grid;gap:8px;z-index:50}
+.toast{background:var(--ink);color:#fff;padding:11px 16px;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.25);max-width:320px}
+.toast.err{background:var(--danger)}
+
+@media (max-width:720px){
+  .add{grid-template-columns:1fr 1fr}
+  .add .field:first-child{grid-column:1/-1}
+  .add .btn{grid-column:1/-1}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Aplicación web con base de datos</h1>
+  
+
+  <section class="stats" aria-label="Resumen">
+    <div class="stat"><b id="st-total">0</b><span>Productos</span></div>
+    <div class="stat"><b id="st-unidades">0</b><span>Unidades en stock</span></div>
+    <div class="stat"><b id="st-valor">$0</b><span>Valor del inventario</span></div>
+    <div class="stat"><b id="st-bajo">0</b><span>Con stock bajo (menos de 10)</span></div>
+  </section>
+
+  <section class="panel">
+    <h2>Agregar producto</h2>
+    <form id="form-add" class="add" autocomplete="off">
+      <div class="field"><label for="a-nombre">Nombre</label><input id="a-nombre" maxlength="100" required placeholder="Ej. Teclado inalámbrico"></div>
+      <div class="field"><label for="a-precio">Precio (MXN)</label><input id="a-precio" type="number" step="0.01" min="0" required placeholder="0.00"></div>
+      <div class="field"><label for="a-stock">Stock</label><input id="a-stock" type="number" step="1" min="0" required placeholder="0"></div>
+      <button class="btn" type="submit">Agregar producto</button>
+    </form>
+  </section>
+
+  <section class="panel">
+    <div class="toolbar">
+      <input id="buscar" type="search" placeholder="Buscar por nombre o ID…" aria-label="Buscar productos">
+      <span class="count" id="contador"></span>
+    </div>
+    <div class="tablebox">
+      <table>
+        <thead>
+          <tr>
+            <th class="sortable" data-sort="id">ID <i></i></th>
+            <th class="sortable" data-sort="nombre">Nombre <i></i></th>
+            <th class="sortable num" data-sort="precio">Precio <i></i></th>
+            <th class="sortable num" data-sort="stock">Stock <i></i></th>
+            <th class="num">Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <nav id="pager" class="pager" aria-label="Paginación"></nav>
+  </section>
+</div>
+
+<dialog id="dlg-ver"><div class="dlg">
+  <h3>Detalle del producto</h3>
+  <dl id="ver-datos"></dl>
+  <div class="row"><button class="btn ghost" id="ver-cerrar">Cerrar</button></div>
+</div></dialog>
+
+<dialog id="dlg-del"><div class="dlg">
+  <h3>¿Eliminar este producto?</h3>
+  <p id="del-texto" style="margin:0 0 18px"></p>
+  <div class="row">
+    <button class="btn ghost" id="del-no">Cancelar</button>
+    <button class="btn danger" id="del-si">Eliminar</button>
+  </div>
+</div></dialog>
+
+<div id="toasts" aria-live="polite"></div>
+
+<script>
+const API = '/api/productos';
+const PER_PAGE = 5;
+const money = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
+const $ = id => document.getElementById(id);
+
+let productos = [];
+let editId = null;
+let flashId = null;
+let pendingDelete = null;
+let page = 1;
+let sort = { key: 'id', dir: 'asc' };
+
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+function toast(msg, err) {
+  const t = document.createElement('div');
+  t.className = 'toast' + (err ? ' err' : '');
+  t.textContent = msg;
+  $('toasts').appendChild(t);
+  setTimeout(() => t.remove(), 3200);
+}
+
+async function api(url, opts) {
+  const res = await fetch(url, opts);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Ocurrió un error en el servidor');
+  return data;
+}
+const jsonOpts = (method, body) => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+
+async function cargar() {
+  try {
+    productos = await api(API);
+    render();
+  } catch (e) {
+    toast('No se pudieron cargar los productos: ' + e.message, true);
+  }
+}
+
+function badge(stock) {
+  if (stock === 0) return '<span class="badge out">Agotado</span>';
+  if (stock < 10) return '<span class="badge low">Stock bajo</span>';
+  return '';
+}
+
+
+function getLista() {
+  const q = $('buscar').value.trim().toLowerCase();
+  const lista = productos.filter(p => !q || p.nombre.toLowerCase().includes(q) || String(p.id) === q);
+  const { key, dir } = sort;
+  lista.sort((a, b) => {
+    let x = a[key], y = b[key];
+    if (key === 'precio') { x = Number(x); y = Number(y); }
+    if (key === 'nombre') return x.localeCompare(y, 'es') * (dir === 'asc' ? 1 : -1);
+    return (x - y) * (dir === 'asc' ? 1 : -1);
+  });
+  return lista;
+}
+
+function renderPager(totalPages) {
+  if (totalPages <= 1) { $('pager').innerHTML = ''; return; }
+  let h = `<button class="pg" data-p="${page - 1}" ${page === 1 ? 'disabled' : ''}>Anterior</button>`;
+  for (let i = 1; i <= totalPages; i++) {
+    h += `<button class="pg ${i === page ? 'on' : ''}" data-p="${i}" ${i === page ? 'aria-current="page"' : ''} aria-label="Página ${i}">${i}</button>`;
+  }
+  h += `<button class="pg" data-p="${page + 1}" ${page === totalPages ? 'disabled' : ''}>Siguiente</button>`;
+  $('pager').innerHTML = h;
+}
+
+function render() {
+  const q = $('buscar').value.trim();
+  const lista = getLista();
+  const totalPages = Math.max(1, Math.ceil(lista.length / PER_PAGE));
+  if (page > totalPages) page = totalPages;
+  if (page < 1) page = 1;
+  const inicio = (page - 1) * PER_PAGE;
+  const visibles = lista.slice(inicio, inicio + PER_PAGE);
+
+  document.querySelectorAll('th.sortable').forEach(th => {
+    th.querySelector('i').textContent = th.dataset.sort === sort.key ? (sort.dir === 'asc' ? '▲' : '▼') : '';
+  });
+
+  $('tbody').innerHTML = visibles.length ? visibles.map(p => {
+    if (p.id === editId) {
+      return `<tr class="editing" data-id="${p.id}">
+        <td>${p.id}</td>
+        <td><input id="e-nombre" value="${esc(p.nombre)}" maxlength="100" aria-label="Nombre"></td>
+        <td class="num"><input id="e-precio" type="number" step="0.01" min="0" value="${Number(p.precio)}" aria-label="Precio"></td>
+        <td class="num"><input id="e-stock" type="number" step="1" min="0" value="${p.stock}" aria-label="Stock"></td>
+        <td class="actions">
+          <button class="btn sm" data-a="guardar" data-id="${p.id}">Guardar</button>
+          <button class="btn sm ghost" data-a="cancelar">Cancelar</button>
+        </td></tr>`;
+    }
+    return `<tr data-id="${p.id}" class="${p.id === flashId ? 'flash' : ''}">
+      <td>${p.id}</td>
+      <td>${esc(p.nombre)}${badge(p.stock)}</td>
+      <td class="num">${money.format(p.precio)}</td>
+      <td class="num">${p.stock}</td>
+      <td class="actions">
+        <button class="btn sm link" data-a="ver" data-id="${p.id}">Ver</button>
+        <button class="btn sm link" data-a="editar" data-id="${p.id}">Editar</button>
+        <button class="btn sm link del" data-a="borrar" data-id="${p.id}">Eliminar</button>
+      </td></tr>`;
+  }).join('') : `<tr><td colspan="5" class="empty">${q ? 'No hay productos que coincidan con la búsqueda.' : 'Todavía no hay productos. Agrega el primero arriba.'}</td></tr>`;
+
+  flashId = null;
+  renderPager(totalPages);
+
+  $('contador').textContent = lista.length
+    ? `Mostrando ${inicio + 1}–${inicio + visibles.length} de ${lista.length} productos`
+    : '0 productos';
+  $('st-total').textContent = productos.length;
+  $('st-unidades').textContent = productos.reduce((s, p) => s + p.stock, 0).toLocaleString('es-MX');
+  $('st-valor').textContent = money.format(productos.reduce((s, p) => s + Number(p.precio) * p.stock, 0));
+  $('st-bajo').textContent = productos.filter(p => p.stock < 10).length;
+
+  if (editId !== null) {
+    const f = $('e-nombre');
+    if (f && document.activeElement !== f && !document.activeElement.id.startsWith('e-')) f.focus();
+  }
+}
+
+
+$('pager').addEventListener('click', e => {
+  const b = e.target.closest('button[data-p]');
+  if (!b || b.disabled) return;
+  page = Number(b.dataset.p);
+  editId = null;
+  render();
+});
+
+
+$('form-add').addEventListener('submit', async e => {
+  e.preventDefault();
+  const datos = {
+    nombre: $('a-nombre').value.trim(),
+    precio: parseFloat($('a-precio').value),
+    stock: parseInt($('a-stock').value, 10)
+  };
+  if (!datos.nombre) return toast('Escribe el nombre del producto.', true);
+  try {
+    const nuevo = await api(API, jsonOpts('POST', datos));
+    e.target.reset();
+    $('buscar').value = '';
+    productos = await api(API);
+    const idx = getLista().findIndex(p => p.id === nuevo.id);
+    if (idx >= 0) page = Math.floor(idx / PER_PAGE) + 1;
+    flashId = nuevo.id;
+    render();
+    toast('Producto agregado.');
+    $('a-nombre').focus();
+  } catch (err) { toast(err.message, true); }
+});
+
+
+$('tbody').addEventListener('click', async e => {
+  const b = e.target.closest('button[data-a]');
+  if (!b) return;
+  const id = Number(b.dataset.id);
+  const p = productos.find(x => x.id === id);
+
+  if (b.dataset.a === 'editar') { editId = id; render(); }
+  else if (b.dataset.a === 'cancelar') { editId = null; render(); }
+  else if (b.dataset.a === 'guardar') guardarEdicion(id);
+  else if (b.dataset.a === 'borrar') {
+    pendingDelete = id;
+    $('del-texto').textContent = `Se eliminará «${p.nombre}». Esta acción no se puede deshacer.`;
+    $('dlg-del').showModal();
+  }
+  else if (b.dataset.a === 'ver') {
+    try {
+      const d = await api(`${API}/${id}`);
+      $('ver-datos').innerHTML = `
+        <dt>ID</dt><dd>${d.id}</dd>
+        <dt>Nombre</dt><dd>${esc(d.nombre)}</dd>
+        <dt>Precio</dt><dd>${money.format(d.precio)}</dd>
+        <dt>Stock</dt><dd>${d.stock} unidades</dd>
+        <dt>Valor en stock</dt><dd>${money.format(Number(d.precio) * d.stock)}</dd>`;
+      $('dlg-ver').showModal();
+    } catch (err) { toast(err.message, true); }
+  }
+});
+
+async function guardarEdicion(id) {
+  const datos = {
+    nombre: $('e-nombre').value.trim(),
+    precio: parseFloat($('e-precio').value),
+    stock: parseInt($('e-stock').value, 10)
+  };
+  if (!datos.nombre || isNaN(datos.precio) || isNaN(datos.stock) || datos.precio < 0 || datos.stock < 0) {
+    return toast('Revisa los datos: nombre, precio y stock son obligatorios.', true);
+  }
+  try {
+    await api(`${API}/${id}`, jsonOpts('PUT', datos));
+    editId = null;
+    flashId = id;
+    toast('Cambios guardados.');
+    await cargar();
+  } catch (err) { toast(err.message, true); }
+}
+
+
+$('tbody').addEventListener('keydown', e => {
+  if (editId === null || !e.target.id.startsWith('e-')) return;
+  if (e.key === 'Enter') { e.preventDefault(); guardarEdicion(editId); }
+  if (e.key === 'Escape') { editId = null; render(); }
+});
+
+
+$('del-no').onclick = () => $('dlg-del').close();
+$('del-si').onclick = async () => {
+  $('dlg-del').close();
+  try {
+    await api(`${API}/${pendingDelete}`, { method: 'DELETE' });
+    toast('Producto eliminado.');
+    await cargar();
+  } catch (err) { toast(err.message, true); }
+};
+$('ver-cerrar').onclick = () => $('dlg-ver').close();
+
+
+$('buscar').addEventListener('input', () => { page = 1; editId = null; render(); });
+document.querySelectorAll('th.sortable').forEach(th => th.addEventListener('click', () => {
+  const k = th.dataset.sort;
+  sort = { key: k, dir: sort.key === k && sort.dir === 'asc' ? 'desc' : 'asc' };
+  page = 1;
+  render();
+}));
+
+cargar();
+</script>
+</body>
+</html>

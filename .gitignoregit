@@ -1,0 +1,1 @@
+".env copy"  initgit add .git commit -m "Subiendo proyecto completo a la raiz"git branch -M maingit remote add origin https://github.com/krmayoral/app-web-db2.gitgit push -u origin main --force
